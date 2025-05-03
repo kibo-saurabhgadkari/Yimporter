@@ -1,0 +1,96 @@
+.export-container {
+  padding: 1rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.export-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.option-card {
+  flex: 1;
+  min-width: 250px;
+  background-color: #f8f9fa;
+  border-radius: 5px;
+  padding: 1.25rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.option-card h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+  color: #495057;
+}
+
+.option-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.export-preview {
+  margin-top: 2rem;
+}
+
+.preview-box {
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 1rem;
+  overflow-x: auto;
+  font-family: monospace;
+  margin-top: 0.5rem;
+}
+
+.preview-box code {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: #495057;
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2rem;
+}
+
+.action-btn {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 0.5rem 1.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.action-btn:hover {
+  background-color: #0069d9;
+}
+
+.action-btn.back {
+  background-color: #6c757d;
+}
+
+.action-btn.back:hover {
+  background-color: #5a6268;
+}
+
+.action-btn.export {
+  background-color: #28a745;
+}
+
+.action-btn.export:hover {
+  background-color: #218838;
+}

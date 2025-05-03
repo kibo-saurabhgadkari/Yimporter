@@ -1,0 +1,45 @@
+name: Feature Request
+description: Suggest a new feature for the Yimporter project
+title: "[FEATURE] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to suggest a feature for Yimporter!
+  - type: textarea
+    id: description
+    attributes:
+      label: Feature Description
+      description: A clear and concise description of the feature you'd like to see
+      placeholder: As a user, I want to...
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: What conditions must be met for this feature to be considered complete?
+      placeholder: "- Feature does X when Y occurs\n- Handles error condition Z"
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature?
+      options:
+        - Critical
+        - High
+        - Medium
+        - Low
+    validations:
+      required: true
+  - type: input
+    id: estimate
+    attributes:
+      label: Effort Estimate
+      description: Your estimate of required effort (if known)
+      placeholder: "e.g., 2 days, 1 week"
+    validations:
+      required: false

@@ -1,0 +1,45 @@
+<div class="export-container">
+  <h2>{{ title }}</h2>
+  <div class="export-options">
+    <div class="option-card">
+      <h3>Export Format</h3>
+      <div class="option-group">
+        <div class="option">
+          <input type="radio" id="ynab-format" name="format" checked>
+          <label for="ynab-format">YNAB CSV Format</label>
+        </div>
+        <div class="option">
+          <input type="radio" id="custom-format" name="format">
+          <label for="custom-format">Custom Format</label>
+        </div>
+      </div>
+    </div>
+    
+    <div class="option-card">
+      <h3>Export Options</h3>
+      <div class="option-group">
+        <div class="option">
+          <input type="checkbox" id="include-header" checked>
+          <label for="include-header">Include Header Row</label>
+        </div>
+        <div class="option">
+          <input type="checkbox" id="sanitize-data" checked>
+          <label for="sanitize-data">Sanitize Data</label>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="export-preview">
+    <h3>Preview</h3>
+    <div class="preview-box">
+      <code>Date,Payee,Category,Memo,Outflow,Inflow</code>
+      <code>...</code>
+    </div>
+  </div>
+  
+  <div class="actions">
+    <button class="action-btn back">Back</button>
+    <button class="action-btn export">Export</button>
+  </div>
+</div>
