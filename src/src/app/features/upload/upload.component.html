@@ -1,13 +1,88 @@
 <div class="upload-container">
   <h2>{{ title }}</h2>
+  
+  <!-- Hidden file input -->
+  <input 
+    type="file" 
+    #fileInput 
+    multiple 
+    (change)="onFileSelected($event)" 
+    style="display: none;"
+    accept=".csv,.xlsx,.xls,.pdf">
+  
+  <!-- Drag and drop area -->
   <div class="upload-area">
-    <div class="dropzone">
-      <p>Drag and drop your bank statement files here</p>
-      <p>or</p>
-      <button class="upload-btn">Select Files</button>
+    <div 
+      class="dropzone" 
+      [class.active]="isDragging"
+      (dragover)="onDragOver($event)" 
+      (dragleave)="onDragLeave($event)" 
+      (drop)="onDrop($event)"
+      (click)="openFileDialog()">
+      
+      <div class="dropzone-content">
+        <div class="upload-icon">
+          <svg width="50" height="50" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 7L12 15" stroke="#007BFF" stroke-width="2" stroke-linecap="round"/>
+            <path d="M9 10L12 7L15 10" stroke="#007BFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M5 15L5 17C5 18.1046 5.89543 19 7 19L17 19C18.1046 19 19 18.1046 19 17L19 15" stroke="#007BFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <p class="dropzone-text">Drag and drop your bank statement files here</p>
+        <p class="dropzone-subtext">or</p>
+        <button type="button" class="upload-btn">Select Files</button>
+        <p class="file-requirements">
+          Supported formats: CSV, Excel (.xlsx, .xls), PDF<br>
+          Maximum file size: 10MB
+        </p>
+      </div>
     </div>
-    <div class="file-list">
-      <!-- Files will be listed here -->
+    
+    <!-- File list -->
+    <div class="file-list" *ngIf="files.length > 0">
+      <h3>Uploaded Files</h3>
+      
+      <div class="file-actions">
+        <button class="clear-btn" (click)="clearFiles()" *ngIf="files.length > 0">Clear All</button>
+        <button 
+          class="proceed-btn" 
+          (click)="proceedToPreview()"
+          *ngIf="hasSuccessfulUploads()">
+          Proceed to Preview
+        </button>
+      </div>
+      
+      <div class="file-item" *ngFor="let file of files; let i = index">
+        <div class="file-info">
+          <div class="file-name-wrapper">
+            <span class="file-name">{{ file.name }}</span>
+            <span class="file-size">{{ file.size }}</span>
+          </div>
+          
+          <div class="file-status" [ngClass]="file.status">
+            <span *ngIf="isPending(file)">Pending</span>
+            <span *ngIf="isUploading(file)">Uploading...</span>
+            <span *ngIf="isSuccess(file)" class="success">Complete</span>
+            <span *ngIf="isError(file)" class="error">Error</span>
+            <button class="remove-btn" (click)="removeFile(i)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Progress bar -->
+        <div class="progress-container" *ngIf="shouldShowProgressBar(file)">
+          <div class="progress-bar" [style.width.%]="file.progress"></div>
+        </div>
+        
+        <!-- Error message -->
+        <div class="error-message" *ngIf="isError(file)">
+          {{ file.errorMessage }}
+        </div>
+      </div>
     </div>
   </div>
 </div>
