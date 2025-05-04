@@ -1,16 +1,17 @@
 <div class="export-container">
   <h2>{{ title }}</h2>
-  <div class="export-options">
+  
+  <form [formGroup]="exportForm" class="export-options">
     <div class="option-card">
       <h3>Export Format</h3>
       <div class="option-group">
         <div class="option">
-          <input type="radio" id="ynab-format" name="format" checked>
+          <input type="radio" id="ynab-format" formControlName="format" value="ynab" checked>
           <label for="ynab-format">YNAB CSV Format</label>
         </div>
         <div class="option">
-          <input type="radio" id="custom-format" name="format">
-          <label for="custom-format">Custom Format</label>
+          <input type="radio" id="custom-format" formControlName="format" value="custom" [disabled]="true">
+          <label for="custom-format">Custom Format (Coming Soon)</label>
         </div>
       </div>
     </div>
@@ -19,27 +20,45 @@
       <h3>Export Options</h3>
       <div class="option-group">
         <div class="option">
-          <input type="checkbox" id="include-header" checked>
+          <input type="checkbox" id="include-header" formControlName="includeHeader">
           <label for="include-header">Include Header Row</label>
         </div>
         <div class="option">
-          <input type="checkbox" id="sanitize-data" checked>
+          <input type="checkbox" id="sanitize-data" formControlName="sanitizeData">
           <label for="sanitize-data">Sanitize Data</label>
         </div>
       </div>
+      
+      <div class="option-group">
+        <div class="filename-input">
+          <label for="filename">Filename:</label>
+          <input type="text" id="filename" formControlName="filename" placeholder="ynab-export">
+        </div>
+      </div>
+    </div>
+  </form>
+  
+  <div class="export-preview">
+    <h3>Preview ({{ transactions.length }} transactions)</h3>
+    <div class="preview-box">
+      <code *ngFor="let line of previewData">{{ line }}</code>
     </div>
   </div>
   
-  <div class="export-preview">
-    <h3>Preview</h3>
-    <div class="preview-box">
-      <code>Date,Payee,Category,Memo,Outflow,Inflow</code>
-      <code>...</code>
-    </div>
+  <div class="transaction-count" *ngIf="transactions.length > 0">
+    Ready to export {{ transactions.length }} transactions
+  </div>
+  
+  <div class="no-data-message" *ngIf="transactions.length === 0">
+    No data available for export. Please upload and process a file first.
   </div>
   
   <div class="actions">
-    <button class="action-btn back">Back</button>
-    <button class="action-btn export">Export</button>
+    <button class="action-btn back" (click)="onBack()">Back</button>
+    <button class="action-btn export" 
+            [disabled]="transactions.length === 0"
+            (click)="onExport()">
+      Export to YNAB
+    </button>
   </div>
 </div>

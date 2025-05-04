@@ -346,7 +346,7 @@ export class TransactionMapperService {
           continue;
         }
 
-        // Extract date and format it to DD/MM/YYYY for YNAB
+        // Extract date and format it to YYYY-MM-DD for internal processing, then to DD/MM/YYYY for YNAB
         const dateValue = row[dateIndex];
         const parsedDate = this.parseDate(dateValue, mapping.dateFormat);
         if (!parsedDate) {
@@ -354,9 +354,8 @@ export class TransactionMapperService {
           continue;
         }
         
-        // Convert YYYY-MM-DD back to DD/MM/YYYY for YNAB format
-        const [year, month, day] = parsedDate.split('-');
-        const ynabDate = `${day}/${month}/${year}`;
+        // Format date in YNAB expected format (DD/MM/YYYY)
+        const ynabDate = this.formatDateForYNAB(parsedDate);
 
         // Extract payee, memo, inflow and outflow
         let payee = '';
@@ -396,8 +395,8 @@ export class TransactionMapperService {
         }
         else {
           // Standard handling for other bank statements
-          payee = row[payeeIndex] || 'Unknown';
-          memo = memoIndex !== -1 ? row[memoIndex] || '' : '';
+          payee = this.sanitizePayee(row[payeeIndex] || 'Unknown');
+          memo = memoIndex !== -1 ? this.sanitizeMemo(row[memoIndex] || '') : '';
           
           if (amountIndex !== -1) {
             // Single amount column
@@ -430,6 +429,10 @@ export class TransactionMapperService {
             outflow = parseFloat(outflowStr) || 0;
           }
         }
+
+        // Round amounts to 2 decimal places
+        inflow = this.roundToTwoDecimals(inflow);
+        outflow = this.roundToTwoDecimals(outflow);
 
         // Create transaction object
         const transaction: Transaction = {
@@ -520,15 +523,14 @@ export class TransactionMapperService {
           continue;
         }
         
-        // Convert YYYY-MM-DD back to DD/MM/YYYY for YNAB format
-        const [year, month, day] = parsedDate.split('-');
-        const ynabDate = `${day}/${month}/${year}`;
+        // Format date in YNAB expected format
+        const ynabDate = this.formatDateForYNAB(parsedDate);
         
         // Extract payee from details
-        const payee = this.extractICICICCPayee(details || '');
+        const payee = this.sanitizePayee(this.extractICICICCPayee(details || ''));
         
         // Use reference number as memo
-        const memo = referenceNo ? `Ref: ${referenceNo}` : '';
+        const memo = this.sanitizeMemo(referenceNo ? `Ref: ${referenceNo}` : '');
         
         // Parse amount - handle Dr. (outflow) and Cr. (inflow) indicators
         let inflow = 0;
@@ -555,14 +557,14 @@ export class TransactionMapperService {
           
           if (!isNaN(amount)) {
             if (isDr) {
-              outflow = amount;
+              outflow = this.roundToTwoDecimals(amount);
               console.log(`Setting outflow to ${outflow}`);
             } else if (isCr) {
-              inflow = amount;
+              inflow = this.roundToTwoDecimals(amount);
               console.log(`Setting inflow to ${inflow}`);
             } else {
               // If no indicator, assume outflow for credit card
-              outflow = amount;
+              outflow = this.roundToTwoDecimals(amount);
               console.log(`No indicator, defaulting outflow to ${outflow}`);
             }
           }
@@ -664,10 +666,14 @@ export class TransactionMapperService {
     const isDr = trimmed.includes('Dr.');
     const isCr = trimmed.includes('Cr.');
     
-    // Remove currency symbols, commas, 'Dr.' and 'Cr.' indicators
+    // Remove currency symbols (₹, Rs., INR), commas, 'Dr.' and 'Cr.' indicators
     let cleaned = trimmed
       .replace(/Dr\./g, '')
       .replace(/Cr\./g, '')
+      .replace(/₹/g, '')
+      .replace(/Rs\./g, '')
+      .replace(/INR/g, '')
+      .replace(/,/g, '')
       .replace(/[^\d.-]/g, '');
     
     // Apply credit/debit indicators
@@ -698,8 +704,12 @@ export class TransactionMapperService {
    */
   private parseDate(dateStr: string, format: string): string | null {
     try {
+      if (!dateStr) {
+        return null;
+      }
+      
       // Clean up the date string
-      const cleanDateStr = dateStr.trim().replace(/\s+/g, ' ');
+      const cleanDateStr = dateStr.toString().trim().replace(/\s+/g, ' ');
       
       // Different date formats to try
       if (format === 'DD/MM/YYYY' || format === 'DD-MM-YYYY') {
@@ -760,6 +770,24 @@ export class TransactionMapperService {
         }
       }
       
+      // Try additional date formats (e.g., "01 Apr 2025")
+      const monthNameMatch = cleanDateStr.match(/(\d{1,2})\s+([a-zA-Z]{3})\s+(\d{4})/);
+      if (monthNameMatch) {
+        const day = monthNameMatch[1].padStart(2, '0');
+        const monthName = monthNameMatch[2].toLowerCase();
+        const year = monthNameMatch[3];
+        
+        const months: {[key: string]: string} = {
+          'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
+          'may': '05', 'jun': '06', 'jul': '07', 'aug': '08',
+          'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12'
+        };
+        
+        if (months[monthName]) {
+          return `${year}-${months[monthName]}-${day}`;
+        }
+      }
+      
       // Fallback: Try to parse with Date object
       const date = new Date(cleanDateStr);
       if (!isNaN(date.getTime())) {
@@ -775,6 +803,63 @@ export class TransactionMapperService {
       console.error(`Error parsing date: ${dateStr}`, error);
       return null;
     }
+  }
+
+  /**
+   * Format a date string from YYYY-MM-DD to DD/MM/YYYY (YNAB format)
+   */
+  private formatDateForYNAB(isoDate: string): string {
+    if (!isoDate) return '';
+    
+    try {
+      // Parse ISO date (YYYY-MM-DD)
+      const [year, month, day] = isoDate.split('-');
+      
+      // Return in DD/MM/YYYY format for YNAB
+      return `${day}/${month}/${year}`;
+    } catch (error) {
+      console.error(`Error formatting date for YNAB: ${isoDate}`, error);
+      return isoDate; // Return original if there's an error
+    }
+  }
+
+  /**
+   * Round a number to two decimal places (for currency)
+   */
+  private roundToTwoDecimals(value: number): number {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
+  }
+
+  /**
+   * Sanitize payee field to handle special characters
+   */
+  private sanitizePayee(payee: string): string {
+    if (!payee) return 'Unknown';
+    
+    // Replace problematic characters with safe alternatives
+    let sanitized = payee
+      .replace(/[^\w\s.,\-&@()]/g, ' ') // Replace special chars with spaces
+      .replace(/\s+/g, ' ')            // Collapse multiple spaces
+      .trim();
+    
+    // Truncate if too long (YNAB has limits)
+    return sanitized.length > 100 ? sanitized.substring(0, 97) + '...' : sanitized;
+  }
+
+  /**
+   * Sanitize memo field to handle special characters
+   */
+  private sanitizeMemo(memo: string): string {
+    if (!memo) return '';
+    
+    // Replace problematic characters with safe alternatives
+    let sanitized = memo
+      .replace(/[^\w\s.,\-&@()]/g, ' ') // Replace special chars with spaces
+      .replace(/\s+/g, ' ')            // Collapse multiple spaces
+      .trim();
+    
+    // Truncate if too long (YNAB has limits)
+    return sanitized.length > 200 ? sanitized.substring(0, 197) + '...' : sanitized;
   }
 
   /**
