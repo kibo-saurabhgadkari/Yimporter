@@ -4,6 +4,8 @@
   min-height: 100vh;
   padding: 0;
   margin: 0;
+  overflow-x: hidden; /* Prevent horizontal scrollbar */
+  width: 100%;
 }
 
 .app-header {
@@ -25,6 +27,7 @@
 .app-content {
   flex: 1;
   padding: 2rem;
+  overflow-x: hidden; /* Prevent horizontal scrollbar in content area */
 }
 
 .app-footer {
