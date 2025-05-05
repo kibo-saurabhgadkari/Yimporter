@@ -23,14 +23,18 @@ export class TransactionMapperService {
       amountColumn: 'Amount (INR)',
       dateFormat: 'DD/MM/YYYY',
       invertAmount: false // Already has Dr/Cr indicators
-    },
-    'Axis_Bank': {
+    },    'Axis_Bank': {
       dateColumn: 'Tran Date',
       payeeColumn: 'PARTICULARS',
       memoColumn: 'CHQNO',
       outflowColumn: 'DR',
       inflowColumn: 'CR',
-      dateFormat: 'DD-MM-YYYY'
+      dateFormat: 'DD-MM-YYYY',
+      numberFormat: {
+        thousandsSeparator: ',',
+        decimalSeparator: '.',
+        trimSpaces: true
+      }
     },
     'Axis_CC': {
       dateColumn: 'Transaction Date',
@@ -87,11 +91,10 @@ export class TransactionMapperService {
       console.log('Detected Axis Bank Credit Card statement');
       return 'Axis_CC';
     }
-    
-    // Check for Axis Bank Statement
+      // Check for Axis Bank Statement
     if ((headerString.includes('tran date') && headerString.includes('particulars')) ||
         (headerString.includes('date') && headerString.includes('particulars') && 
-         headerString.includes('dr') && headerString.includes('cr'))) {
+         (headerString.includes('dr') || headerString.includes('cr') || headerString.includes('debit') || headerString.includes('credit')))) {
       console.log('Detected Axis Bank Statement');
       return 'Axis_Bank';
     }
@@ -397,10 +400,9 @@ export class TransactionMapperService {
           // Standard handling for other bank statements
           payee = this.sanitizePayee(row[payeeIndex] || 'Unknown');
           memo = memoIndex !== -1 ? this.sanitizeMemo(row[memoIndex] || '') : '';
-          
-          if (amountIndex !== -1) {
+            if (amountIndex !== -1) {
             // Single amount column
-            const amountStr = this.cleanAmount(row[amountIndex]);
+            const amountStr = this.cleanAmount(row[amountIndex], mapping.numberFormat);
             const amount = parseFloat(amountStr);
             
             if (!isNaN(amount)) {
@@ -422,8 +424,8 @@ export class TransactionMapperService {
             }
           } else if (inflowIndex !== -1 && outflowIndex !== -1) {
             // Separate inflow/outflow columns
-            const inflowStr = this.cleanAmount(row[inflowIndex]);
-            const outflowStr = this.cleanAmount(row[outflowIndex]);
+            const inflowStr = this.cleanAmount(row[inflowIndex], mapping.numberFormat);
+            const outflowStr = this.cleanAmount(row[outflowIndex], mapping.numberFormat);
             
             inflow = parseFloat(inflowStr) || 0;
             outflow = parseFloat(outflowStr) || 0;
@@ -653,18 +655,28 @@ export class TransactionMapperService {
 
   /**
    * Clean amount string by removing currency symbols and commas
-   */
-  private cleanAmount(value: any): string {
+   */  private cleanAmount(value: any, formatOptions?: TransactionMapping['numberFormat']): string {
     if (!value) return '0';
     
     // First trim any whitespace
-    const trimmed = value.toString().trim();
+    let trimmed = value.toString();
+    
+    // Apply special trimming for some bank formats that have excessive spaces
+    if (formatOptions?.trimSpaces) {
+      trimmed = trimmed.replace(/\s+/g, ' ').trim();
+    } else {
+      trimmed = trimmed.trim();
+    }
     
     console.log(`Processing amount value: "${trimmed}"`);
     
     // Check for Dr. and Cr. indicators in ICICI credit card format
     const isDr = trimmed.includes('Dr.');
     const isCr = trimmed.includes('Cr.');
+    
+    // Get the appropriate thousand separator and decimal separator
+    const thousandsSeparator = formatOptions?.thousandsSeparator || ',';
+    const decimalSeparator = formatOptions?.decimalSeparator || '.';
     
     // Remove currency symbols (₹, Rs., INR), commas, 'Dr.' and 'Cr.' indicators
     let cleaned = trimmed
@@ -673,8 +685,13 @@ export class TransactionMapperService {
       .replace(/₹/g, '')
       .replace(/Rs\./g, '')
       .replace(/INR/g, '')
-      .replace(/,/g, '')
+      .replace(new RegExp(thousandsSeparator, 'g'), '')
       .replace(/[^\d.-]/g, '');
+      
+    // If decimal separator is not a period, replace it with a period
+    if (decimalSeparator !== '.' && trimmed.includes(decimalSeparator)) {
+      cleaned = cleaned.replace(decimalSeparator, '.');
+    }
     
     // Apply credit/debit indicators
     if (isDr) {
@@ -1008,18 +1025,19 @@ export class TransactionMapperService {
 
   /**
    * Extract inflow and outflow amounts from Axis Bank statement row
-   */
-  private extractAxisBankAmounts(row: any[], inflowIndex: number, outflowIndex: number): { inflow: number, outflow: number } {
+   */  private extractAxisBankAmounts(row: any[], inflowIndex: number, outflowIndex: number): { inflow: number, outflow: number } {
     let inflow = 0;
     let outflow = 0;
     
+    const numberFormat = this.bankMappings['Axis_Bank'].numberFormat;
+    
     if (inflowIndex !== -1) {
-      const inflowStr = this.cleanAmount(row[inflowIndex]);
+      const inflowStr = this.cleanAmount(row[inflowIndex], numberFormat);
       inflow = parseFloat(inflowStr) || 0;
     }
     
     if (outflowIndex !== -1) {
-      const outflowStr = this.cleanAmount(row[outflowIndex]);
+      const outflowStr = this.cleanAmount(row[outflowIndex], numberFormat);
       outflow = parseFloat(outflowStr) || 0;
     }
     

@@ -32,7 +32,6 @@ export class CsvParserService {
   public parsedData$ = this.parsedDataSubject.asObservable();
 
   constructor() { }
-
   /**
    * Parse a CSV file and return the parsed data
    */
@@ -52,15 +51,16 @@ export class CsvParserService {
       }
       
       // Special handling for Axis Bank statements
-      if (file.name.toLowerCase().includes('axis') && 
-          (file.name.toLowerCase().includes('statement') || file.name.toLowerCase().includes('bank'))) {
+      if ((file.name.toLowerCase().includes('axis') || 
+           content.toLowerCase().includes('axis bank')) && 
+          (content.includes('Tran Date') || 
+           content.includes('Statement of Account'))) {
         console.log('Detected Axis Bank Statement, applying special parsing');
         return this.parseAxisBankStatement(content, file.name);
       }
       
       // If no specific format detected, try the generic CSV parser
       const parseResult = this.parseCSV(content, options);
-      
       const result: ParsedData = {
         headers: parseResult.headers,
         rows: parseResult.rows,
@@ -268,8 +268,7 @@ export class CsvParserService {
 
   /**
    * Special parser designed specifically for Axis Bank Statement format
-   */
-  private parseAxisBankStatement(content: string, fileName: string): ParsedData {
+   */  private parseAxisBankStatement(content: string, fileName: string): ParsedData {
     // Split content into lines and filter out empty lines
     const lines = content.split(/\r\n|\n|\r/).filter(line => line.trim().length > 0);
     console.log(`Axis Bank Statement has ${lines.length} lines`);
@@ -314,12 +313,13 @@ export class CsvParserService {
     
     // Get the transaction headers
     const headerLine = lines[headerLineIndex];
-    const headers = headerLine.split(',').map(h => h.trim());
+    // Parse the header line - split by comma and thoroughly trim each header
+    const headers = this.splitCsvRow(headerLine).map(h => h.trim());
     console.log('Found headers:', headers);
     
     // Validate headers - must have at least date and description
     if (headers.length < 3 || 
-        !headers.some(h => h.toLowerCase().includes('date')) || 
+        !headers.some(h => h.toLowerCase().includes('date') || h.toLowerCase().includes('tran')) || 
         !headers.some(h => h.toLowerCase().includes('particular'))) {
       console.error('Invalid headers detected in Axis Bank statement:', headers);
       return { headers: [], rows: [], fileName, detectedFormat: 'Unknown' };
@@ -349,24 +349,29 @@ export class CsvParserService {
       
       try {
         // Process the transaction row
-        const values = this.splitCsvRow(line);
+        const rawValues = this.splitCsvRow(line);
+        
+        // For Axis Bank statements specifically, handle the extra whitespace in the columns
+        const values = rawValues.map(val => 
+          typeof val === 'string' ? val.replace(/\s+/g, ' ').trim() : val
+        );
+        
+        // Axis Bank statements have date in DD-MM-YYYY format in the first column
+        const dateMatch = values[0] && values[0].match(/^\d{1,2}-\d{1,2}-\d{4}$/);
         
         // Validate that this is likely a transaction row (check if first column is a date)
-        if (values.length >= 3 && this.looksLikeDate(values[0])) {
+        if (values.length >= 3 && dateMatch) {
           console.log('Parsed transaction row:', values);
           
-          // Ensure all values are trimmed to remove excess spaces
-          const cleanedValues = values.map(v => v.trim());
-          
           // Make sure it has the right number of columns
-          if (cleanedValues.length < headers.length) {
-            const paddedValues = [...cleanedValues];
+          if (values.length < headers.length) {
+            const paddedValues = [...values];
             while (paddedValues.length < headers.length) {
               paddedValues.push('');
             }
             transactionRows.push(paddedValues);
           } else {
-            transactionRows.push(cleanedValues);
+            transactionRows.push(values);
           }
         } else {
           console.log('Skipping non-transaction row:', line);
@@ -389,18 +394,22 @@ export class CsvParserService {
         const line = lines[i].trim();
         if (line && line.includes(',') && !line.startsWith('"') && !line.includes('Unless')) {
           try {
-            const values = this.splitCsvRow(line);
-            // Add any row that has numbers in it as a potential transaction
-            if (values.length >= 3 && values.some(v => /\d/.test(v))) {
+            // Apply more aggressive parsing for Axis Bank format
+            const values = this.splitCsvRow(line).map(v => v.trim());
+            
+            // Identify likely transaction rows - they should have numbers representing amounts
+            const hasAmount = values.some(v => /[\d,]+\.\d{2}/.test(v));
+            const hasDate = values.some(v => /\d{1,2}-\d{1,2}-\d{4}/.test(v));
+            
+            if (values.length >= 3 && (hasAmount || hasDate)) {
               console.log('Found alternative format transaction:', values);
-              transactionRows.push(values.map(v => v.trim()));
+              transactionRows.push(values);
             }
           } catch (error) {
             console.error('Error in alternative parsing approach:', error);
           }
         }
-      }
-    }
+      }    }
     
     // Create the parsed data result
     const result: ParsedData = {
@@ -409,6 +418,9 @@ export class CsvParserService {
       fileName,
       detectedFormat: 'Axis_Bank'
     };
+    
+    // Log the final result
+    console.log(`Successfully parsed Axis Bank statement with ${transactionRows.length} transactions`);
     
     this.parsedDataSubject.next(result);
     return result;
@@ -586,7 +598,6 @@ export class CsvParserService {
       detectedFormat: 'ICICI_CC'
     };
   }
-
   /**
    * Helper to split CSV row handling quoted values
    */
@@ -602,7 +613,7 @@ export class CsvParserService {
       if (char === '"' && (i === 0 || line[i-1] !== '\\')) {
         inQuotes = !inQuotes;
       } else if (char === delimiter && !inQuotes) {
-        result.push(currentValue.trim());
+        result.push(currentValue);
         currentValue = '';
       } else {
         currentValue += char;
@@ -610,19 +621,26 @@ export class CsvParserService {
     }
     
     // Add the last value
-    result.push(currentValue.trim());
+    result.push(currentValue);
     
-    return result;
+    // For Axis Bank statements, we need to trim each value to remove the extra spaces
+    return result.map(val => typeof val === 'string' ? val.trim() : val);
   }
-
   /**
    * Check if a string looks like a date
    */
   private looksLikeDate(value: string): boolean {
+    if (!value || typeof value !== 'string') {
+      return false;
+    }
+    
+    const trimmedValue = value.trim();
+    
     // Check common date formats
     return Boolean(
-      value.match(/^\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4}$/) || // DD-MM-YYYY or DD/MM/YYYY
-      value.match(/^\d{2,4}[-\/]\d{1,2}[-\/]\d{1,2}$/)    // YYYY-MM-DD or YYYY/MM/DD
+      trimmedValue.match(/^\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4}$/) || // DD-MM-YYYY or DD/MM/YYYY
+      trimmedValue.match(/^\d{2,4}[-\/]\d{1,2}[-\/]\d{1,2}$/) || // YYYY-MM-DD or YYYY/MM/DD
+      trimmedValue.match(/^\d{1,2}-[A-Za-z]{3}-\d{2,4}$/)      // DD-MMM-YYYY (like 02-May-2025)
     );
   }
 

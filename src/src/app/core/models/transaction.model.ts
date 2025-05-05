@@ -23,4 +23,9 @@ export interface TransactionMapping {
   accountColumn?: string;
   dateFormat: string;     // The format of the date in the source file
   invertAmount?: boolean; // Whether to invert the amount (some statements use negative for debits)
+  numberFormat?: {
+    thousandsSeparator?: string;
+    decimalSeparator?: string;
+    trimSpaces?: boolean;
+  };
 }
